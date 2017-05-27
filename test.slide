@@ -1,0 +1,212 @@
+Unlocking Deadlocks
+Understanding deadlocks in Go context
+28 May 2017
+Tags: go golang
+
+Mohan Dutt Parashar
+Software Developer, Oogway Consulting Pvt. Ltd.
+mohan@oogway.in
+
+* Agenda
+- What and why deadlock?
+- Basics of concurrent programming in Go
+- detecting and preventing deadlocks
+
+* What is a deadlock ?
+
+- In concurrent computing, a deadlock is a state in which each member of a group of actions, is waiting for some other member to release a lock.
+- In an operating system, a deadlock occurs when a process or thread enters a waiting state because a requested system resource is held by another waiting process, which in turn is waiting for another resource held by another waiting process.
+- A situation where all the independent actors are blocked infinitely.
+
+* Lock, What and Why?
+- A lock is a synchronization mechanism for enforcing limits on access to a resource in an environment where there are many threads of execution.
+- Lock is basically used to prevent race conditions which can lead to data inconsistency.
+
+* Race Condition
+When more than process tries to access a mutable shared memory and alteast one of the access is write. It leads to data inconsistency.
+In Go, these independent processes are called Goroutines.
+
+.image deadlock_flow.png
+
+* Goroutines
+
+What is Goroutine ? an independent function launched by *go* statement.
+
+It has it's own call stack which grows and shrinks.
+
+It's not a thread.
+
+There might be only one thread in a program with thousands of goroutines.
+
+* Example
+
+.play no_goroutine.go /START OMIT/,/STOP OMIT/
+
+* Example
+
+.play goroutine1.go /START OMIT/,/STOP OMIT/
+
+* How to synchronize goroutines?.
+
+*In*Go*we*have*:*
+
+- channel
+- Mutex/RWMutex
+- WaitGroup
+- sync/atomic
+
+* What is a channel?
+Channel is a typed conduit through which you can send and receive values with the channel operator, <-.
+A channel in Go allows two goroutines to communicate.
+
+Channels are of two types:
+
+- Unbuffered Channel
+- Buffered Channel
+
+* Unbuffered Channel
+.image unbuffered.png 400 800
+
+- Both reader and writer goroutines are blocked untill the exchange completes.
+
+* Example
+.play unbuffered.go /START OMIT/,/STOP OMIT/
+
+* Buffered Channels
+.image buffered.png 400 800
+
+* Example
+.play buffered.go /START OMIT/,/STOP OMIT/
+
+* Mutex
+Used for Mutual Exclusion Locks. Its a struct implemented in `sync` package. Exposed methods are:
+
+- Lock()
+- Unlock()
+
+* Example
+
+.play -edit mutex1.go /START OMIT/,/STOP OMIT/
+
+* RWMutex
+Provides a separate read lock which can be taken multiple at a time. Exposed methods:
+
+- Lock()
+- Unlock()
+- RLock()
+- RUnlock() 
+
+* Example
+
+.play -edit rwmutex.go /START OMIT/,/STOP OMIT/
+
+* WaitGroup
+A WaitGroup waits for a collection of goroutines to finish. The main goroutine calls Add to set the number of goroutines to wait for. Then each of the goroutines runs and calls Done when finished. At the same time, Wait can be used to block until all goroutines have finished.
+
+Exposed methods are:
+
+- Add(delata int) // adds delta to waitgroup counter
+- Done() // decrements the counter by 1
+- Wait() // blocks untill counter is zero
+
+* Example
+
+.play wg.go /START OMIT/,/STOP OMIT/
+
+* sync/atomic package
+This package provides low-level atomic memory primitives useful for implementing synchronization algorithms.
+Except for special, low-level applications, synchronization is better done with channels or the facilities of the sync package. Share memory by communicating; don't communicate by sharing memory.
+eg:
+
+- AddInt32(addr *int32, delta int)
+- LoadInt32
+- StoreInt32...
+
+* Example
+
+.play -edit atomic.go /START1 OMIT/,/STOP1 OMIT/,/START2 OMIT/,/STOP2 OMIT/
+
+* Race Condition Examples
+Is this program sane?
+.play -edit race1.go /START OMIT/,/STOP OMIT/
+
+* Fix Using Channels
+.play race_fix_channel.go /START OMIT/,/STOP OMIT/
+
+* Fix Using Mutex
+.play -edit race_fix_mutex.go /START OMIT/,/STOP OMIT/
+
+* Some Theory
+A deadlock situation can arise if and only if all of the following conditions hold simultaneously in a system:
+
+- *Mutual*exclusion*: The resources involved must be unshareable; otherwise, the processes would not be prevented from using the resource when necessary. Only one process can use the resource at any given instant of time.
+
+- *Hold*and*wait* or *resource*holding*: a process is currently holding at least one resource and requesting additional resources which are being held by other processes.
+
+- *No*preemption*: a resource can be released only voluntarily by the process holding it.
+
+* ...
+
+- *Circular*wait*: each process must be waiting for a resource which is being held by another process, which in turn is waiting for the first process to release the resource. In general, there is a set of waiting processes, P = {P1, P2, …, PN}, such that P1 is waiting for a resource held by P2, P2 is waiting for a resource held by P3 and so on until PN is waiting for a resource held by P1.
+
+These four conditions are known as the *Coffman*conditions* from their first description in a 1971 article by _Edward_G._Coffman,_Jr_.
+
+* How most systems deal with it?
+
+1. Ignoring deadlock
+
+2. Detection
+
+3. Prevention
+
+* Go and deadlock:
+
+- Go compiler do not catch deadlocks. Go runtime has deadlock detector which catches deadlocks at runtime.
+
+Example
+
+.play -edit deadlock1.go /START OMIT/,/STOP OMIT/
+
+* Example 2
+Unbuffered channel
+
+.play -edit deadlock2.go /START OMIT/,/STOP OMIT/
+
+* Example 3
+Buffered Channel
+
+.play -edit deadlock3.go /START OMIT/,/STOP OMIT/
+
+* Example 4
+WaitGroup
+
+.play -edit deadlock4.go /START OMIT/,/STOP OMIT/
+
+* Example 5
+What is wrong with this code?
+
+.play -edit deadlock5.go /START OMIT/,/STOP OMIT/
+
+* Limitations of Go runtime
+
+- Detects deadlock only in case of main goroutine is blocked. So if deadlock happens in set of other go routines, it will not be detected and result into leak.
+
+.play leak1.go /START OMIT/,/STOP OMIT/
+
+* ...
+- Since its runtime, it can be a case where a deadlock condition can go undetected or be detected after a long time.
+
+.play lazy_detection.go /START OMIT/,/STOP OMIT/
+
+* So what can be done about it?
+
+- Write more tests to reach full coverage of code
+- Static analysis of code.
+- Keep all rules of synchronization primitives in mind before using them.
+
+* Less common properties:
+- read or write on a nil channel will block forever
+- read from closed channel returns zero value
+- write to closed channel causes panic, _isClosed_ function can be used to check.
+- taking lock twice will result into deadlock
+- calling unlock twice will cause runtime panic
